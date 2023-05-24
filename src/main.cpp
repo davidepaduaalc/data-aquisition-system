@@ -29,6 +29,7 @@ bool starts_with(string message, string n){
         if(message[x] != n[x])
             return false;
     }
+    return true;
 }
 
 
@@ -37,6 +38,13 @@ std::time_t string_to_time_t(const std::string& time_string) {
     std::istringstream ss(time_string);
     ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
     return std::mktime(&tm);
+}
+
+std::string time_t_to_string(std::time_t time) {
+    std::tm* tm = std::localtime(&time);
+    std::ostringstream ss;
+    ss << std::put_time(tm, "%Y-%m-%dT%H:%M:%S");
+    return ss.str();
 }
 
 class session
@@ -72,20 +80,70 @@ private:
                 sensor.timestamp = string_to_time_t(message_div[2]);
                 sensor.value = stod(message_div[3]);
                 std::fstream file("log.dat", std::fstream::out | std::fstream::in | std::fstream::binary 
-																	 | std::fstream::app); 
+                                                                     | std::fstream::app); 
                 if (file.is_open())
-	            {
+                {
                     file.write((char*)&sensor, sizeof(LogRecord));
                     file.close();
                 }
                 else
-	            {
-		            std::cout << "Error opening file!" << std::endl;
-	            }
+                {
+                    std::cout << "Error opening file!" << std::endl;
+                }
             }
+
             if(starts_with(message,"GET")){
                 std::vector<std::string> message_div;
                 boost::split(message_div, message, boost::is_any_of("|"));
+                int tam_reg = std::stoi(message_div[2]);
+                std::fstream file("log.dat", std::fstream::out | std::fstream::in | std::fstream::binary 
+                                                                     | std::fstream::app); 
+                if (file.is_open())
+                {
+                          // Obtenha o tamanho do arquivo em bytes
+                  file.seekg(0, std::fstream::end);
+                  int file_size = file.tellg();
+                  int num_records = file_size / sizeof(LogRecord);
+
+                  if (num_records > 0)
+                  {
+                      // Calcule o índice do primeiro registro a ser lido
+                      int start_index = num_records - tam_reg;
+                      if (start_index < 0)
+                      {
+                          start_index = 0;
+                          tam_reg = num_records;
+                      }
+
+                      // Posicione o ponteiro de leitura no início do primeiro registro a ser lido
+                      file.seekg(start_index * sizeof(LogRecord), std::fstream::beg);
+
+                      // Crie um vetor temporário para armazenar os registros
+                      std::vector<LogRecord> records(tam_reg);
+
+                      // Leia os registros do arquivo
+                      file.read(reinterpret_cast<char*>(records.data()), tam_reg * sizeof(LogRecord));
+                      string date;
+                      // Imprima os registros
+                      for (const auto& record : records)
+                      {
+                        date = time_t_to_string(record.timestamp);
+                          // Imprima o conteúdo do registro conforme necessário
+                        std::cout << message_div[2] << ";" << date <<"|"<< record.value<<"\n";
+
+                      }
+                  }
+                  else
+                  {
+                      std::cout << "No records found in the file." << std::endl;
+                  }
+
+                  file.close();
+                }
+                else
+                {
+                    std::cout << "Error opening file!" << std::endl;
+                }
                 
 
             }
